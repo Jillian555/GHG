@@ -47,4 +47,4 @@ If you find this repo useful, please cite:
 ```
 
 # Credit
-This repository was developed based on the [TPP](https://github.com/mala-lab/TPP).# GHG
+This repository was developed based on the [TPP](https://github.com/mala-lab/TPP).
