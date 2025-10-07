@@ -18,7 +18,6 @@ if __name__ == '__main__':
     parser.add_argument("--lr", type=float, default=0.005, help="learning rate")
     parser.add_argument('--weight-decay', type=float, default=5e-4, help="weight decay")
 
-
     parser.add_argument('--w_c', type=float, default=1.0, help="weight of complementarity")
     parser.add_argument('--w_s', type=float, default=1.0, help="weight of similarity")
     parser.add_argument('--w_kl', type=float, default=0, help="weight decay of KL divergence loss")
@@ -29,10 +28,10 @@ if __name__ == '__main__':
     parser.add_argument('--syn_epochs', type=int, default=50, help="number of synthesis epochs")
     parser.add_argument('--pca', type=int, default=3, help="n_components of PCA")
 
-
     parser.add_argument('--backbone', type=str, default='GCN', help="backbone GNN, [GAT, GCN, GIN]")
     parser.add_argument('--method', type=str,
-                        choices=["bare", 'lwf', 'gem', 'ewc', 'mas', 'twp', 'ergnn', 'tpp', 'ghg', 'jointtrain', 'joint',
+                        choices=["bare", 'lwf', 'gem', 'ewc', 'mas', 'twp', 'ergnn', 'tpp', 'ghg', 'jointtrain',
+                                 'joint',
                                  'Joint'], default="bare", help="baseline continual learning method")
     parser.add_argument('--share-labels', type=strtobool, default=False,
                         help='task-IL specific, whether to share output label space for different tasks')
@@ -45,7 +44,7 @@ if __name__ == '__main__':
                         help='whether to load existing splitting or regenerate')
     parser.add_argument('--d_dtat', default=None, help='will be assigned during running')
     parser.add_argument('--ratio_valid_test', nargs='+', default=[0.2, 0.2],
-                        help='ratio of nodes used for valid and test') #cora0.4, 0.4   corafull0.2, 0.2
+                        help='ratio of nodes used for valid and test')  # cora0.4, 0.4   corafull0.2, 0.2
     parser.add_argument('--transductive', type=strtobool, default=True, help='using transductive or inductive')
     parser.add_argument('--default_split', type=strtobool, default=False,
                         help='whether to  use the data split provided by the dataset')
@@ -127,6 +126,7 @@ if __name__ == '__main__':
 
         main = get_pipeline(args)
         from memory import test_mem
+
         test_mem(args)
         train_ratio = round(1 - args.ratio_valid_test[0] - args.ratio_valid_test[1], 2)
         if args.ILmode == 'classIL':
@@ -152,7 +152,8 @@ if __name__ == '__main__':
             torch.cuda.empty_cache()
             AP_dict[hyp_params_str].append(final_AP_)
         import numpy as np
-        #print(f"A: {np.mean(As):.2f}±{np.std(As, ddof=1):.2f}", flush=True)
+
+        # print(f"A: {np.mean(As):.2f}±{np.std(As, ddof=1):.2f}", flush=True)
         print(f"AP: {np.mean(APs):.2f}±{np.std(APs, ddof=1):.2f}", flush=True)
         print(f"AF: {np.mean(AFs):.2f}±{np.std(AFs, ddof=1):.2f}", flush=True)
 
@@ -160,8 +161,6 @@ if __name__ == '__main__':
             AP_best = np.mean(AP_dict[hyp_params_str])
             hyp_best_str = hyp_params_str
             name_best = name
-
-
 
     # config_name = name_best.split('/')[-1]
     # subfolder_c = name_best.split(config_name)[-2]
@@ -171,9 +170,3 @@ if __name__ == '__main__':
     #     for ite in range(args.repeats):
     #         args.current_model_save_path = [name_best, ite]
     #         final_AP_, final_AF_, final_AP, final_AF = main(args, valid=False)
-
-
-
-
-
-
