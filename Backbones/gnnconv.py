@@ -14,6 +14,7 @@ import torch.autograd as autograd
 import ipdb
 from torch.nn import init
 
+
 class GINConv(nn.Module):
     r"""Graph Isomorphism Network layer from paper `How Powerful are Graph
     Neural Networks? <https://arxiv.org/pdf/1810.00826.pdf>`__.
@@ -35,6 +36,7 @@ class GINConv(nn.Module):
     learn_eps : bool, optional
         If True, :math:`\epsilon` will be a learnable parameter.
     """
+
     def __init__(self,
                  apply_func,
                  aggregator_type,
@@ -95,7 +97,7 @@ class GINConv(nn.Module):
         rst = (1 + self.eps) * feat_dst + graph.dstdata['neigh']
         if self.apply_func is not None:
             rst = self.apply_func(rst)
-        #graph.apply_edges(fn.u_sub_v('h', 'h', 'e'))
+        # graph.apply_edges(fn.u_sub_v('h', 'h', 'e'))
         graph.apply_edges(lambda edges: {'e': th.sum((th.mul(edges.src['h'], th.tanh(edges.dst['h']))), 1)})
         e = graph.edata.pop('e')
 
@@ -137,7 +139,7 @@ class GINConv(nn.Module):
         rst = (1 + self.eps) * feat_dst + block.dstdata['neigh']
         if self.apply_func is not None:
             rst = self.apply_func(rst)
-        #graph.apply_edges(fn.u_sub_v('h', 'h', 'e'))
+        # graph.apply_edges(fn.u_sub_v('h', 'h', 'e'))
         block.apply_edges(lambda edges: {'e': th.sum((th.mul(edges.src['h'], th.tanh(edges.dst['h']))), 1)})
         e = block.edata.pop('e')
 
@@ -151,14 +153,18 @@ def mask_init(module):
     nn.init.kaiming_uniform_(scores, a=math.sqrt(5))
     return scores
 
+
 def signed_constant(module):
     fan = nn.init._calculate_correct_fan(module.weight, 'fan_in')
     gain = nn.init.calculate_gain('relu')
     std = gain / math.sqrt(fan)
     module.weight.data = module.weight.data.sign() * std
 
+
 gcn_msg = fn.copy_u('h', 'm')
 gcn_reduce = fn.sum(msg='m', out='h')
+
+
 class GCNLayer(nn.Module):
     def __init__(self, in_feats, out_feats, negative_slope=0.2):
         super(GCNLayer, self).__init__()
@@ -209,10 +215,12 @@ class GCNLayer(nn.Module):
 
 
 class DGLGCN(nn.Module):
-    def __init__(self, in_feats, out_feats, norm="both", weight=True, bias=True, activation=None, allow_zero_in_degree=False,):
+    def __init__(self, in_feats, out_feats, norm="both", weight=True, bias=True, activation=None,
+                 allow_zero_in_degree=False, ):
         super(DGLGCN, self).__init__()
         if norm not in ("none", "both", "right", "left"):
-            raise DGLError('Invalid norm value. Must be either "none", "both", "right" or "left". But got "{}".'.format(norm))
+            raise DGLError(
+                'Invalid norm value. Must be either "none", "both", "right" or "left". But got "{}".'.format(norm))
         self._in_feats = in_feats
         self._out_feats = out_feats
         self._norm = norm
@@ -242,7 +250,7 @@ class DGLGCN(nn.Module):
             if not self._allow_zero_in_degree:
                 if (graph.in_degrees() == 0).any():
                     raise DGLError("There are 0-in-degree nodes in the graph, ")
-            
+
             aggregate_fn = fn.copy_u("h", "m")
             if edge_weight is not None:
                 assert edge_weight.shape[0] == graph.num_edges()
@@ -307,11 +315,6 @@ class DGLGCN(nn.Module):
         return summary.format(**self.__dict__)
 
 
-
-
-
-
-
 class GATConv(nn.Module):
     r"""Apply `Graph Attention Network <https://arxiv.org/pdf/1710.10903.pdf>`__
     over an input signal.
@@ -342,6 +345,7 @@ class GATConv(nn.Module):
         If not None, applies an activation function to the updated node features.
         Default: ``None``.
     """
+
     def __init__(self,
                  in_feats,
                  out_feats,
@@ -351,40 +355,39 @@ class GATConv(nn.Module):
                  negative_slope=0.2,
                  residual=False,
                  activation=None,
-                 k = 1):
+                 k=1):
         super(GATConv, self).__init__()
         self._num_heads = num_heads
         self._in_feats = in_feats
         self._out_feats = out_feats
         self.fc = nn.Linear(in_feats, out_feats * num_heads, bias=False)
-            
+
         self.attn_l1 = nn.Parameter(th.FloatTensor(size=(1, num_heads, out_feats)))
         self.attn_r1 = nn.Parameter(th.FloatTensor(size=(1, num_heads, out_feats)))
-        
+
         self.feat_drop = nn.Dropout(feat_drop)
         self.attn_drop = nn.Dropout(attn_drop)
         self.leaky_relu = nn.LeakyReLU(negative_slope)
         if residual:
             if in_feats != out_feats:
                 self.res_fc = nn.Linear(in_feats, num_heads * out_feats, bias=False)
-            #else:
-             #   self.res_fc = Identity()
+            # else:
+            #   self.res_fc = Identity()
         else:
             self.register_buffer('res_fc', None)
         self.reset_parameters()
         self.activation = activation
-        self.lrelu = nn.Sigmoid()#nn.LeakyReLU()
+        self.lrelu = nn.Sigmoid()  # nn.LeakyReLU()
 
     def reset_parameters(self):
         """Reinitialize learnable parameters."""
         gain = nn.init.calculate_gain('relu')
         nn.init.xavier_normal_(self.fc.weight, gain=gain)
         nn.init.xavier_normal_(self.attn_l1, gain=gain)
-        nn.init.xavier_normal_(self.attn_r1, gain=gain)        
+        nn.init.xavier_normal_(self.attn_r1, gain=gain)
         if isinstance(self.res_fc, nn.Linear):
             nn.init.xavier_normal_(self.res_fc.weight, gain=gain)
 
-        
     def forward(self, graph, feat):
         r"""Compute graph attention network layer.
         Parameters
@@ -404,16 +407,16 @@ class GATConv(nn.Module):
         graph = graph.local_var().to('cuda:{}'.format(feat.get_device()))
         h = self.feat_drop(feat)
         feat = self.fc(h).view(-1, self._num_heads, self._out_feats)
-        el = (feat * self.attn_l1).sum(dim=-1).unsqueeze(-1) 
-        er = (feat * self.attn_r1).sum(dim=-1).unsqueeze(-1) 
-        graph.ndata.update({'ft': feat, 'el': el, 'er': er}) 
-        graph.apply_edges(fn.u_add_v('el', 'er', 'e'))      
-        e = self.leaky_relu(graph.edata.pop('e'))  
+        el = (feat * self.attn_l1).sum(dim=-1).unsqueeze(-1)
+        er = (feat * self.attn_r1).sum(dim=-1).unsqueeze(-1)
+        graph.ndata.update({'ft': feat, 'el': el, 'er': er})
+        graph.apply_edges(fn.u_add_v('el', 'er', 'e'))
+        e = self.leaky_relu(graph.edata.pop('e'))
         e_soft = edge_softmax(graph, e)
         elist.append(e_soft)
-        graph.edata['a'] = self.attn_drop(e_soft)       
-        graph.update_all(fn.u_mul_e('ft', 'a', 'm'), fn.sum('m', 'ft')) 
-        rst = graph.ndata['ft'] 
+        graph.edata['a'] = self.attn_drop(e_soft)
+        graph.update_all(fn.u_mul_e('ft', 'a', 'm'), fn.sum('m', 'ft'))
+        rst = graph.ndata['ft']
         if self.activation:
             rst = self.activation(rst)
         # residual
@@ -431,10 +434,11 @@ class GATConv(nn.Module):
         h_src = h_dst = self.feat_drop(feat)
         feat_src = self.fc(h_src).view(
             -1, self._num_heads, self._out_feats)
-        feat_dst = feat_src[:block.number_of_dst_nodes()] # the first few nodes are dst nodes, as explained in https://docs.dgl.ai/tutorials/large/L1_large_node_classification.html
+        feat_dst = feat_src[
+                   :block.number_of_dst_nodes()]  # the first few nodes are dst nodes, as explained in https://docs.dgl.ai/tutorials/large/L1_large_node_classification.html
         el = (feat_src * self.attn_l1).sum(dim=-1).unsqueeze(-1)
         er = (feat_dst * self.attn_r1).sum(dim=-1).unsqueeze(-1)
-        #block.srcdata.update({'ft': feat, 'el': el, 'er': er})
+        # block.srcdata.update({'ft': feat, 'el': el, 'er': er})
         block.srcdata.update({'ft': feat_src, 'el': el})
         block.dstdata.update({'er': er})
         block.apply_edges(fn.u_add_v('el', 'er', 'e'))

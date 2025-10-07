@@ -8,7 +8,8 @@ import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from ogb.nodeproppred import DglNodePropPredDataset
 import dgl
-from dgl.data import CoraGraphDataset, CoraFullDataset, register_data_args, RedditDataset, CiteseerGraphDataset, AmazonCoBuyComputerDataset
+from dgl.data import CoraGraphDataset, CoraFullDataset, register_data_args, RedditDataset, CiteseerGraphDataset, \
+    AmazonCoBuyComputerDataset
 from ogb.graphproppred import DglGraphPropPredDataset, collate_dgl, Evaluator
 import copy
 from torch_geometric.utils import to_networkx, degree, to_dense_adj, to_scipy_sparse_matrix
@@ -19,49 +20,55 @@ import os
 import json
 import random
 
+
 class Linear_IL(nn.Linear):
-    def forward(self, input: Tensor, n_cls=10000, normalize = True) -> Tensor:
+    def forward(self, input: Tensor, n_cls=10000, normalize=True) -> Tensor:
         if normalize:
-            return F.linear(F.normalize(input,dim=-1), F.normalize(self.weight[0:n_cls],dim=-1), bias=None)
+            return F.linear(F.normalize(input, dim=-1), F.normalize(self.weight[0:n_cls], dim=-1), bias=None)
         else:
             return F.linear(input, self.weight[0:n_cls], bias=None)
+
 
 def accuracy(logits, labels, cls_balance=True, ids_per_cls=None):
     if cls_balance:
         _, indices = torch.max(logits.detach(), dim=1)
-        acc_per_cls = [torch.sum((indices == labels)[ids])/len(ids) for ids in ids_per_cls]
-        return sum(acc_per_cls).item()/len(acc_per_cls)
+        acc_per_cls = [torch.sum((indices == labels)[ids]) / len(ids) for ids in ids_per_cls]
+        return sum(acc_per_cls).item() / len(acc_per_cls)
     else:
         _, indices = torch.max(logits, dim=1)
         correct = torch.sum(indices == labels)
         return correct.item() * 1.0 / len(labels)
 
-def mean_AP(args,logits, labels, cls_balance=True, ids_per_cls=None):
+
+def mean_AP(args, logits, labels, cls_balance=True, ids_per_cls=None):
     eval_ogb = Evaluator(args.dataset)
-    pos = (F.sigmoid(logits)>0.5)
+    pos = (F.sigmoid(logits) > 0.5)
     APs = 0
     if cls_balance:
         _, indices = torch.max(logits, dim=1)
         ids = _.cpu().numpy()
-        acc_per_cls = [torch.sum((indices == labels)[ids])/len(ids) for ids in ids_per_cls]
-        return sum(acc_per_cls).item()/len(acc_per_cls)
+        acc_per_cls = [torch.sum((indices == labels)[ids]) / len(ids) for ids in ids_per_cls]
+        return sum(acc_per_cls).item() / len(acc_per_cls)
     else:
         input_dict = {"y_true": labels, "y_pred": logits}
 
         eval_result_ogb = eval_ogb.eval(input_dict)
-        for c,ids in enumerate(ids_per_cls):
-            TP_ = (pos[ids,c]*labels[ids,c]).sum()
-            FP_ = (pos[ids,c]*(labels[ids, c]==False)).sum()
+        for c, ids in enumerate(ids_per_cls):
+            TP_ = (pos[ids, c] * labels[ids, c]).sum()
+            FP_ = (pos[ids, c] * (labels[ids, c] == False)).sum()
             med0 = TP_ + FP_ + 0.0001
             med1 = TP_ / med0
             APs += med1
-        med2 = APs/labels.shape[1]
+        med2 = APs / labels.shape[1]
         return med2.item()
 
-def evaluate_batch(args,model, g, features, labels, mask, label_offset1, label_offset2, cls_balance=True, ids_per_cls=None):
+
+def evaluate_batch(args, model, g, features, labels, mask, label_offset1, label_offset2, cls_balance=True,
+                   ids_per_cls=None):
     model.eval()
     with torch.no_grad():
-        dataloader = dgl.dataloading.DataLoader(g.cpu(), list(range(labels.shape[0])), args.nb_sampler, batch_size=args.batch_size, shuffle=False, drop_last=False)
+        dataloader = dgl.dataloading.DataLoader(g.cpu(), list(range(labels.shape[0])), args.nb_sampler,
+                                                batch_size=args.batch_size, shuffle=False, drop_last=False)
         output = torch.tensor([]).cuda(args.gpu)
         output_l = torch.tensor([]).cuda(args.gpu)
         for input_nodes, output_nodes, blocks in dataloader:
@@ -69,7 +76,7 @@ def evaluate_batch(args,model, g, features, labels, mask, label_offset1, label_o
             input_features = blocks[0].srcdata['feat']
             output_labels = blocks[-1].dstdata['label'].squeeze()
             output_predictions, _ = model.forward_batch(blocks, input_features)
-            output = torch.cat((output,output_predictions),dim=0)
+            output = torch.cat((output, output_predictions), dim=0)
             output_l = torch.cat((output_l, output_labels), dim=0)
 
         logits = output[:, label_offset1:label_offset2]
@@ -78,19 +85,23 @@ def evaluate_batch(args,model, g, features, labels, mask, label_offset1, label_o
         else:
             return accuracy(logits[mask], labels[mask].cuda(args.gpu), cls_balance=cls_balance, ids_per_cls=ids_per_cls)
 
-def evaluate(model, g, features, labels, mask, label_offset1, label_offset2, cls_balance=True, ids_per_cls=None, save_logits_name=None):
+
+def evaluate(model, g, features, labels, mask, label_offset1, label_offset2, cls_balance=True, ids_per_cls=None,
+             save_logits_name=None):
     model.eval()
     with torch.no_grad():
         output, _ = model(g, features)
         logits = output
         if save_logits_name is not None:
-            with open('/store/continual_graph_learning/baselines_by_TWP/NCGL/results/logits_for_tsne/{}.pkl'.format(save_logits_name), 'wb') as f:
-                pickle.dump({'logits':logits,'ids_per_cls':ids_per_cls}, f)
+            with open('/store/continual_graph_learning/baselines_by_TWP/NCGL/results/logits_for_tsne/{}.pkl'.format(
+                    save_logits_name), 'wb') as f:
+                pickle.dump({'logits': logits, 'ids_per_cls': ids_per_cls}, f)
 
         if cls_balance:
             return accuracy(logits, labels, cls_balance=cls_balance, ids_per_cls=ids_per_cls)
         else:
             return accuracy(logits[mask], labels[mask], cls_balance=cls_balance, ids_per_cls=ids_per_cls)
+
 
 def evaluatewp(output, labels, mask, cls_balance=True, ids_per_cls=None):
     logits = output
@@ -107,15 +118,15 @@ def init_structure_encoding(subgraph, type_init='rw', n_rw=16, n_dg=16):
         # 
         A = to_scipy_sparse_matrix(edge_indexs, num_nodes=subgraph.num_nodes())
         D = (subgraph.in_degrees() ** -1.0).numpy()
-        Dinv=sp.diags(D)
-        RW=A*Dinv
-        M=RW
-        SE_rw=[torch.from_numpy(M.diagonal()).float()]
-        M_power=M
-        for _ in range(n_rw-1):
-            M_power=M_power*M
+        Dinv = sp.diags(D)
+        RW = A * Dinv
+        M = RW
+        SE_rw = [torch.from_numpy(M.diagonal()).float()]
+        M_power = M
+        for _ in range(n_rw - 1):
+            M_power = M_power * M
             SE_rw.append(torch.from_numpy(M_power.diagonal()).float())
-        SE_rw=torch.stack(SE_rw,dim=-1)
+        SE_rw = torch.stack(SE_rw, dim=-1)
         return SE_rw
 
     elif type_init == 'dg':
@@ -123,7 +134,7 @@ def init_structure_encoding(subgraph, type_init='rw', n_rw=16, n_dg=16):
         g_dg = subgraph.in_degrees().numpy().clip(1, n_dg)
         SE_dg = torch.zeros([subgraph.num_nodes(), n_dg])
         for i in range(len(g_dg)):
-            SE_dg[i,int(g_dg[i]-1)] = 1
+            SE_dg[i, int(g_dg[i] - 1)] = 1
         return SE_dg
 
     elif type_init == 'rw_dg':
@@ -131,22 +142,21 @@ def init_structure_encoding(subgraph, type_init='rw', n_rw=16, n_dg=16):
         # ipdb.set_trace()
         A = to_scipy_sparse_matrix(edge_indexs, num_nodes=subgraph.num_nodes())
         D = (subgraph.in_degrees() ** -1.0).numpy()
-        Dinv=sp.diags(D)
-        RW=A*Dinv
-        M=RW
-        SE=[torch.from_numpy(M.diagonal()).float()]
-        M_power=M
-        for _ in range(n_rw-1):
-            M_power=M_power*M
+        Dinv = sp.diags(D)
+        RW = A * Dinv
+        M = RW
+        SE = [torch.from_numpy(M.diagonal()).float()]
+        M_power = M
+        for _ in range(n_rw - 1):
+            M_power = M_power * M
             SE.append(torch.from_numpy(M_power.diagonal()).float())
-        SE_rw=torch.stack(SE,dim=-1)
+        SE_rw = torch.stack(SE, dim=-1)
         # PE_degree
         g_dg = subgraph.in_degrees().numpy().clip(1, n_dg)
         SE_dg = torch.zeros([subgraph.num_nodes(), n_dg])
         for i in range(len(g_dg)):
-            SE_dg[i,int(g_dg[i]-1)] = 1
+            SE_dg[i, int(g_dg[i] - 1)] = 1
         return torch.cat([SE_rw, SE_dg], dim=1)
-
 
 
 class incremental_graph_trans_(nn.Module):
@@ -160,7 +170,7 @@ class incremental_graph_trans_(nn.Module):
         self.n_nodes = self.labels.shape[0]
         self.tr_va_te_split = dataset[1]
 
-    def get_graph(self, tasks_to_retain=[], n_agents=None, partition='noniid-skew', node_ids = None, remove_edges=True):
+    def get_graph(self, tasks_to_retain=[], n_agents=None, partition='noniid-skew', node_ids=None, remove_edges=True):
         # get the partial graph
         # tasks-to-retain: classes retained in the partial graph
         # tasks-to-infer: classes to predict on the partial graph
@@ -175,10 +185,11 @@ class incremental_graph_trans_(nn.Module):
                 ids_train_old.extend(self.tr_va_te_split[t][0])
                 ids_valid_old.extend(self.tr_va_te_split[t][1])
                 ids_test_old.extend(self.tr_va_te_split[t][2])
-                node_ids_retained.extend(self.tr_va_te_split[t][0] + self.tr_va_te_split[t][1] + self.tr_va_te_split[t][2])
+                node_ids_retained.extend(
+                    self.tr_va_te_split[t][0] + self.tr_va_te_split[t][1] + self.tr_va_te_split[t][2])
 
-            #Only training set is divided, the test set is not divided
-            alla_ids_train_old_map={0:ids_train_old}
+            # Only training set is divided, the test set is not divided
+            alla_ids_train_old_map = {0: ids_train_old}
             if n_agents > 1:
                 n_train = len(ids_train_old)
                 ids_train_old = np.array(ids_train_old)
@@ -210,39 +221,40 @@ class incremental_graph_trans_(nn.Module):
                     pass
                 traindata_cls_counts = record_net_data_stats(self.labels.squeeze(), alla_ids_train_old_map)
                 data_distributions = traindata_cls_counts / traindata_cls_counts.sum(axis=1)[:, np.newaxis]
-                print('data_distributions',traindata_cls_counts, data_distributions)
+                print('data_distributions', traindata_cls_counts, data_distributions)
 
             subgraph_0 = dgl.node_subgraph(self.graph, node_ids_retained, store_ids=True)
             if node_ids_ is None:
                 subgraph = subgraph_0
 
-
         if node_ids_ is not None:
             # retrain the given nodes
-            if not isinstance(node_ids_[0],list):
+            if not isinstance(node_ids_[0], list):
                 # if nodes are not divided into different tasks
                 subgraph_1 = dgl.node_subgraph(self.graph, node_ids_, store_ids=True)
                 if remove_edges:
                     # to facilitate the methods like ER-GNN to only retrieve nodes
                     n_edges = subgraph_1.edges()[0].shape[0]
                     subgraph_1.remove_edges(list(range(n_edges)))
-            elif isinstance(node_ids_[0],list):
+            elif isinstance(node_ids_[0], list):
                 # if nodes are diveded into different tasks
-                subgraph_1 = dgl.node_subgraph(self.graph, node_ids_[0], store_ids=True) # load the subgraph containing nodes of the first task
+                subgraph_1 = dgl.node_subgraph(self.graph, node_ids_[0],
+                                               store_ids=True)  # load the subgraph containing nodes of the first task
                 node_ids_.pop(0)
                 for ids in node_ids_:
                     # merge the remaining nodes
-                    subgraph_1 = dgl.batch([subgraph_1,dgl.node_subgraph(self.graph, ids, store_ids=True)])
+                    subgraph_1 = dgl.batch([subgraph_1, dgl.node_subgraph(self.graph, ids, store_ids=True)])
 
-            if len(tasks_to_retain)==0:
+            if len(tasks_to_retain) == 0:
                 subgraph = subgraph_1
 
-        if len(tasks_to_retain)>0 and node_ids is not None:
-            subgraph = dgl.batch([subgraph_0,subgraph_1])
+        if len(tasks_to_retain) > 0 and node_ids is not None:
+            subgraph = dgl.batch([subgraph_0, subgraph_1])
 
-        node_ids_per_task_reordered, ids_train, ids_val, ids_test = [],[],[],[]
+        node_ids_per_task_reordered, ids_train, ids_val, ids_test = [], [], [], []
         old_ids = subgraph.ndata['_ID'].cpu()
-        ids_train = [[(old_ids == i).nonzero()[0][0].item() for i in alla_ids_train_old_map[a_id]] for a_id in range(n_agents)]
+        ids_train = [[(old_ids == i).nonzero()[0][0].item() for i in alla_ids_train_old_map[a_id]] for a_id in
+                     range(n_agents)]
         ids_val = [(old_ids == i).nonzero()[0][0].item() for i in ids_valid_old]
         ids_test = [(old_ids == i).nonzero()[0][0].item() for i in ids_test_old]
         for c in tasks_to_retain:
@@ -252,15 +264,14 @@ class incremental_graph_trans_(nn.Module):
         return subgraph, node_ids_per_task_reordered, [ids_train, ids_val, ids_test]
 
 
-
 def train_valid_test_split(ids, ratio_valid_test):
     va_te_ratio = sum(ratio_valid_test)
     train_ids, va_te_ids = train_test_split(ids, test_size=va_te_ratio)
-    return [train_ids] + train_test_split(va_te_ids, test_size=ratio_valid_test[1]/va_te_ratio)
+    return [train_ids] + train_test_split(va_te_ids, test_size=ratio_valid_test[1] / va_te_ratio)
 
 
 class NodeLevelDataset(incremental_graph_trans_):
-    def __init__(self,name='ogbn-arxiv', IL='class', default_split=False,ratio_valid_test=None,args=None):
+    def __init__(self, name='ogbn-arxiv', IL='class', default_split=False, ratio_valid_test=None, args=None):
         r""""
         name: name of the dataset
         IL: use task- or class-incremental setting
@@ -289,14 +300,14 @@ class NodeLevelDataset(incremental_graph_trans_):
         elif name == 'Arxiv-CL':
             data = DglNodePropPredDataset('ogbn-arxiv', root=f'{args.ori_data_path}/ogb_downloaded')
             graph, label = data[0]
-        elif name =='Cora-CL':
+        elif name == 'Cora-CL':
             custom_download_path = f'{args.ori_data_path}'
             download_path = f'{args.ori_data_path}/cora.zip'
             if not os.path.exists(download_path):
                 download('https://data.dgl.ai/dataset/cora.zip', path=download_path)
             data = CoraGraphDataset(custom_download_path)
             graph, label = data[0], data[0].dstdata['label'].view(-1, 1)
-        elif name =='Citeseer-CL':
+        elif name == 'Citeseer-CL':
             custom_download_path = f'{args.ori_data_path}'
             download_path = f'{args.ori_data_path}/citeseer.zip'
             if not os.path.exists(download_path):
@@ -312,7 +323,7 @@ class NodeLevelDataset(incremental_graph_trans_):
             graph, label = graph_slap, label_slap.view(-1, 1)
         else:
             print('invalid data name')
-        
+
         n_cls = args.n_cls
         cls = [i for i in range(n_cls)]
         cls_id_map = {i: list((label.squeeze() == i).nonzero().squeeze().view(-1, ).numpy()) for i in cls}
@@ -320,27 +331,35 @@ class NodeLevelDataset(incremental_graph_trans_):
         print(cls_sizes)
         for c in cls_sizes:
             if cls_sizes[c] < 2:
-                cls.remove(c) # remove classes with less than 2 examples, which cannot be split into train, val, test sets
+                cls.remove(
+                    c)  # remove classes with less than 2 examples, which cannot be split into train, val, test sets
         cls_id_map = {i: list((label.squeeze() == i).nonzero().squeeze().view(-1, ).numpy()) for i in cls}
         n_cls = len(cls)
         if default_split:
             split_idx = data.get_idx_split()
-            train_idx, valid_idx, test_idx = split_idx["train"].tolist(), split_idx["valid"].tolist(), split_idx["test"].tolist()
-            tr_va_te_split = {c: [list(set(cls_id_map[c]).intersection(set(train_idx))), list(set(cls_id_map[c]).intersection(set(valid_idx))), list(set(cls_id_map[c]).intersection(set(test_idx)))] for c in cls}
+            train_idx, valid_idx, test_idx = split_idx["train"].tolist(), split_idx["valid"].tolist(), split_idx[
+                "test"].tolist()
+            tr_va_te_split = {c: [list(set(cls_id_map[c]).intersection(set(train_idx))),
+                                  list(set(cls_id_map[c]).intersection(set(valid_idx))),
+                                  list(set(cls_id_map[c]).intersection(set(test_idx)))] for c in cls}
 
         elif not default_split:
-            split_name = f'{args.data_path}/tr{round(1-ratio_valid_test[0]-ratio_valid_test[1],2)}_va{ratio_valid_test[0]}_te{ratio_valid_test[1]}_split_{name}.pkl'
+            split_name = f'{args.data_path}/tr{round(1 - ratio_valid_test[0] - ratio_valid_test[1], 2)}_va{ratio_valid_test[0]}_te{ratio_valid_test[1]}_split_{name}.pkl'
             try:
-                tr_va_te_split = pickle.load(open(split_name, 'rb')) # could use same split across different experiments for consistency
+                tr_va_te_split = pickle.load(
+                    open(split_name, 'rb'))  # could use same split across different experiments for consistency
             except:
                 if ratio_valid_test[1] > 0:
-                    tr_va_te_split = {c: train_valid_test_split(cls_id_map[c], ratio_valid_test=ratio_valid_test) for c in cls}
+                    tr_va_te_split = {c: train_valid_test_split(cls_id_map[c], ratio_valid_test=ratio_valid_test) for c
+                                      in cls}
                     print(f'splitting is {ratio_valid_test}')
                 elif ratio_valid_test[1] == 0:
                     tr_va_te_split = {c: [cls_id_map[c], [], []] for c in cls}
                 with open(split_name, 'wb') as f:
                     pickle.dump(tr_va_te_split, f)
         super().__init__([[graph, label], tr_va_te_split], n_cls)
+
+
 def record_net_data_stats(y_train, net_dataidx_map):
     net_cls_counts_dict = {}
     net_cls_counts_npy = np.array([])
@@ -354,18 +373,16 @@ def record_net_data_stats(y_train, net_dataidx_map):
         for i in range(len(unq)):
             tmp_npy[unq[i]] = unq_cnt[i]
         net_cls_counts_npy = np.concatenate(
-                        (net_cls_counts_npy, tmp_npy), axis=0)
-    net_cls_counts_npy = np.reshape(net_cls_counts_npy, (-1,num_classes))
+            (net_cls_counts_npy, tmp_npy), axis=0)
+    net_cls_counts_npy = np.reshape(net_cls_counts_npy, (-1, num_classes))
 
-
-    data_list=[]
+    data_list = []
     for net_id, data in net_cls_counts_dict.items():
-        n_total=0
+        n_total = 0
         for class_id, n_data in data.items():
             n_total += n_data
         data_list.append(n_total)
     return net_cls_counts_npy
-
 
 
 class BioDataset:
@@ -376,15 +393,12 @@ class BioDataset:
         self.X = pd.read_csv(f'{input_folder}/X.csv')
         self.y = pd.read_csv(f'{input_folder}/y.csv')
 
-
         networkx_graph = nx.read_graphml(f'{input_folder}/graph.graphml')
         networkx_graph = nx.relabel_nodes(networkx_graph, {str(i): i for i in range(len(networkx_graph))})
         self.networkx_graph = networkx_graph
 
-
         self.dgl_graph = dgl.from_networkx(networkx_graph)
         self.dgl_graph.ndata['feat'] = torch.tensor(self.X.values, dtype=torch.float32)
-
 
         categorical_columns = []
         if os.path.exists(f'{input_folder}/cat_features.txt'):
@@ -410,7 +424,8 @@ class BioDataset:
             self.masks = dict()
             for i in range(self.max_seeds):
                 random.shuffle(idx)
-                r1, r2, r3 = idx[:int(.6*len(idx))], idx[int(.6*len(idx)):int(.8*len(idx))], idx[int(.8*len(idx)):]
+                r1, r2, r3 = idx[:int(.6 * len(idx))], idx[int(.6 * len(idx)):int(.8 * len(idx))], idx[
+                                                                                                   int(.8 * len(idx)):]
                 self.masks[str(i)] = {"train": r1, "val": r2, "test": r3}
 
             with open(f'{input_folder}/masks.json', 'w+') as f:
@@ -418,6 +433,8 @@ class BioDataset:
 
         self.labels = torch.tensor(self.y.values.squeeze(), dtype=torch.long)
         self.dgl_graph.ndata['label'] = self.labels
+
+
 def read_slap():
     dataset = BioDataset(max_seeds=5)
     dataset.read_input('/slap/')

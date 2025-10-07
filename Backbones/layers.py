@@ -1,5 +1,6 @@
 import torch.nn as nn
 
+
 class PairNorm(nn.Module):
     def __init__(self, mode='PN-SCS', scale=1.0):
         """
@@ -13,7 +14,7 @@ class PairNorm(nn.Module):
               especially for GCN and GAT.)
             PairNorm is typically used after each graph convolution operation. 
         """
-        assert mode in ['None', 'PN',  'PN-SI', 'PN-SCS']
+        assert mode in ['None', 'PN', 'PN-SI', 'PN-SCS']
         super(PairNorm, self).__init__()
         self.mode = mode
         self.scale = scale
@@ -21,15 +22,15 @@ class PairNorm(nn.Module):
         # Scale can be set based on origina data, and also the current feature lengths.
         # We leave the experiments to future. A good pool we used for choosing scale:
         # [0.1, 1, 10, 50, 100]
-        
+
     def forward(self, x):
         if self.mode == 'None':
             return x
-        
-        col_mean = x.mean(dim=0)      
+
+        col_mean = x.mean(dim=0)
         if self.mode == 'PN':
             x = x - col_mean
-            rownorm_mean = (1e-6 + x.pow(2).sum(dim=1).mean()).sqrt() 
+            rownorm_mean = (1e-6 + x.pow(2).sum(dim=1).mean()).sqrt()
             x = self.scale * x / rownorm_mean
 
         if self.mode == 'PN-SI':
@@ -53,9 +54,10 @@ class DynamicPairNorm(nn.Module):
     Output:
         the scale and mean for each node
     """
+
     def __init__(self):
         super(DynamicPairNorm, self).__init__()
-    
+
     def __TransFeauture(self):
         """
         translate the feature of node to pair distance, so that network can be used for any
@@ -67,4 +69,3 @@ class DynamicPairNorm(nn.Module):
         Output:
             graph without node's features but with edge features
         """
-

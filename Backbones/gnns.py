@@ -6,18 +6,19 @@ from dgl.nn.pytorch import edge_softmax
 import dgl.function as fn
 import ipdb
 import torch as th
-linear_choices = {'nn.Linear':nn.Linear, 'Linear_IL':Linear_IL}
+
+linear_choices = {'nn.Linear': nn.Linear, 'Linear_IL': Linear_IL}
+
 
 class GIN(nn.Module):
-    def __init__(self, args,):
+    def __init__(self, args, ):
         super(GIN, self).__init__()
         dims = [args.d_data] + args.GIN_args['h_dims'] + [args.n_cls]
         self.dropout = args.GIN_args['dropout']
         self.gat_layers = nn.ModuleList()
-        for l in range(len(dims)-1):
-            lin = torch.nn.Linear(dims[l], dims[l+1])
+        for l in range(len(dims) - 1):
+            lin = torch.nn.Linear(dims[l], dims[l + 1])
             self.gat_layers.append(GINConv(lin, 'sum'))
-
 
     def forward(self, g, features):
         e_list = []
@@ -41,16 +42,16 @@ class GIN(nn.Module):
         for layer in self.gat_layers:
             layer.reset_parameters()
 
+
 class GCN(nn.Module):
     def __init__(self, args):
         super(GCN, self).__init__()
         dims = [args.d_data] + args.GCN_args['h_dims'] + [args.GCN_args['h_dims'][-1]]
         self.dropout = args.GCN_args['dropout']
         self.gat_layers = nn.ModuleList()
-        for l in range(len(dims)-1):
-            self.gat_layers.append(DGLGCN(dims[l], dims[l+1]))
+        for l in range(len(dims) - 1):
+            self.gat_layers.append(DGLGCN(dims[l], dims[l + 1]))
         args.hidden = args.GCN_args['h_dims'][-1]
-
 
     def forward(self, g, features):
         e_list = []
@@ -68,7 +69,7 @@ class GCN(nn.Module):
     def forward_batch(self, blocks, features):
         e_list = []
         h = features
-        for i,layer in enumerate(self.gat_layers[:-1]):
+        for i, layer in enumerate(self.gat_layers[:-1]):
             h, e = layer.forward_batch(blocks[i], h)
             h = F.relu(h)
             e_list = e_list + e
@@ -82,10 +83,11 @@ class GCN(nn.Module):
         for layer in self.gat_layers:
             layer.reset_parameters()
 
+
 class GAT(nn.Module):
     def __init__(self, args, heads, activation):
         super(GAT, self).__init__()
-        #self.g = g
+        # self.g = g
         self.num_layers = args.GAT_args['num_layers']
         self.gat_layers = nn.ModuleList()
         self.norm_layers = nn.ModuleList()
@@ -96,22 +98,24 @@ class GAT(nn.Module):
             args.GAT_args['feat_drop'], args.GAT_args['attn_drop'], args.GAT_args['negative_slope'], False, None))
         # self.norm_layers.append(nn.BatchNorm1d(num_hidden*heads[0]))
         self.norm_layers.append(PairNorm())
-        
+
         # hidden layers
         for l in range(1, args.GAT_args['num_layers']):
             # due to multi-head, the in_dim = num_hidden * num_heads
             self.gat_layers.append(GATConv(
-                args.GAT_args['num_hidden'] * heads[l-1], args.GAT_args['num_hidden'], heads[l],
-                args.GAT_args['feat_drop'], args.GAT_args['attn_drop'], args.GAT_args['negative_slope'], args.GAT_args['residual'], self.activation))
+                args.GAT_args['num_hidden'] * heads[l - 1], args.GAT_args['num_hidden'], heads[l],
+                args.GAT_args['feat_drop'], args.GAT_args['attn_drop'], args.GAT_args['negative_slope'],
+                args.GAT_args['residual'], self.activation))
             # self.norm_layers.append(nn.BatchNorm1d(num_hidden*heads[l]))
             self.norm_layers.append(PairNorm())
         # output projection
 
         self.gat_layers.append(GATConv(
             args.GAT_args['num_hidden'] * heads[-2], args.n_cls, heads[-1],
-            args.GAT_args['feat_drop'], args.GAT_args['attn_drop'], args.GAT_args['negative_slope'], args.GAT_args['residual'], None))
+            args.GAT_args['feat_drop'], args.GAT_args['attn_drop'], args.GAT_args['negative_slope'],
+            args.GAT_args['residual'], None))
 
-    def forward(self, g, inputs, save_logit_name = None):
+    def forward(self, g, inputs, save_logit_name=None):
         h = inputs
         e_list = []
         for l in range(self.num_layers):
@@ -123,7 +127,7 @@ class GAT(nn.Module):
         self.second_last_h = h
         # output projection
         logits, e = self.gat_layers[-1](g, h)
-        #self.second_last_h = logits if len(self.gat_layers) == 1 else h
+        # self.second_last_h = logits if len(self.gat_layers) == 1 else h
         logits = logits.mean(1)
         e_list = e_list + e
         return logits, e_list
@@ -131,7 +135,7 @@ class GAT(nn.Module):
     def forward_batch(self, blocks, features):
         e_list = []
         h = features
-        for i,layer in enumerate(self.gat_layers[:-1]):
+        for i, layer in enumerate(self.gat_layers[:-1]):
             h, e = layer.forward_batch(blocks[i], h)
             h = h.flatten(1)
             h = self.activation(h)
@@ -142,10 +146,10 @@ class GAT(nn.Module):
         e_list = e_list + e
         return logits, e_list
 
-
     def reset_params(self):
         for layer in self.gat_layers:
             layer.reset_parameters()
+
 
 class SGC_Agg(nn.Module):
     # only the neighborhood aggregation of SGC
@@ -229,6 +233,7 @@ class SGC_Agg(nn.Module):
         # return self.fc(feat)
         return feat
 
+
 class SGC(nn.Module):
     def __init__(self, args):
         super(SGC, self).__init__()
@@ -243,7 +248,7 @@ class SGC(nn.Module):
             self.bns = nn.ModuleList()
         h_dims = args.SGC_args['h_dims']
         args.hidden = h_dims[-1]
-        
+
         if len(h_dims) > 0:
             self.feat_trans_layers.append(linear_layer(args.d_data, h_dims[0], bias=args.SGC_args['linear_bias']))
             if self.bn:
@@ -265,9 +270,8 @@ class SGC(nn.Module):
         logits = self.feat_trans(x)
         return logits
 
-
     def forward_batch(self, blocks, x, se, twp=False, tasks=None):
-        #graph = graph.local_var().to('cuda:{}'.format(self.gpu))
+        # graph = graph.local_var().to('cuda:{}'.format(self.gpu))
         e_list = []
         x = self.neighbor_agg.forward_batch(blocks, x)
         logits, e = self.feat_trans(blocks[0], x, twp=twp, cls=tasks)
@@ -285,8 +289,7 @@ class SGC(nn.Module):
         x = self.feat_trans_layers[-1](x)
         return x
         # return x, beforecls
-        #return x.log_softmax(dim=-1), elist
-    
+        # return x.log_softmax(dim=-1), elist
 
     def reset_params(self):
         for layer in self.feat_trans_layers:

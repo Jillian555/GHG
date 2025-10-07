@@ -1,5 +1,7 @@
 import torch.nn.functional as F
 from .gnns import GAT, GCN, GIN, SGC
+
+
 def get_model(args):
     if args.backbone == 'GAT':
         heads = ([args.GAT_args['heads']] * args.GAT_args['num_layers']) + [args.GAT_args['out_heads']]
@@ -11,4 +13,3 @@ def get_model(args):
     elif args.backbone == 'SGC':
         model = SGC(args)
     return model
-
