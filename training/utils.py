@@ -161,10 +161,6 @@ def weight_flatten_all_sep(model1, model2):
     return params
 
 
-
-
-
-
 def compute_principal_angles(A, B):
     assert A.shape[0] == B.shape[0], "A and B must have the same number of vectors"
 
@@ -254,8 +250,8 @@ def cal_model_cosine_difference_cls(n_agents, outputs_as, topo_fea_cls_as):
                 model_similarity_matrix[i, j] = 0
                 model_similarity_matrix[j, i] = 0
             elif outputs_as[i] == [] and outputs_as[j] == []:
-                model_similarity_matrix[i, j] = 0#-1
-                model_similarity_matrix[j, i] = 0#-1
+                model_similarity_matrix[i, j] = 0  # -1
+                model_similarity_matrix[j, i] = 0  # -1
             else:
                 embi = torch.cat([outputs_as[i].cpu(), topo_fea_cls_as[i].cpu()])
                 embj = torch.cat([outputs_as[j].cpu(), topo_fea_cls_as[j].cpu()])
@@ -290,6 +286,3 @@ def optimizing_graph_matrix_neighbor(n_agents, graph_matrix, model_complementary
 
         graph_matrix[i, list(range(n_agents))] = torch.Tensor(x.value)
     return graph_matrix
-
-
-
