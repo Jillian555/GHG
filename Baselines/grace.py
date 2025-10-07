@@ -4,6 +4,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class LogReg(nn.Module):
     def __init__(self, ft_in, nb_classes):
         super(LogReg, self).__init__()
@@ -25,15 +26,16 @@ class LogReg(nn.Module):
 
 
 def drop_feature(x, drop_prob):
-    drop_mask = torch.empty((x.size(1), ), dtype=torch.float32, device=x.device).uniform_(0, 1) < drop_prob
+    drop_mask = torch.empty((x.size(1),), dtype=torch.float32, device=x.device).uniform_(0, 1) < drop_prob
     x = x.clone()
     x[:, drop_mask] = 0
     return x
 
+
 def mask_edge(graph, drop_prob):
     graph = copy.deepcopy(graph)
     num_edges = graph.number_of_edges()
-    edge_delete = np.random.choice(num_edges, int(drop_prob*num_edges), replace=False)
+    edge_delete = np.random.choice(num_edges, int(drop_prob * num_edges), replace=False)
     src, dst = graph.edges()
     not_equal = src[edge_delete].cpu() != dst[edge_delete].cpu()
     edge_delete = edge_delete[not_equal]
@@ -104,7 +106,9 @@ class ModelGrace(nn.Module):
         ret = ret.mean()
         return ret
 
-def traingrace(modelgrace, graph, features, batch_size = None, drop_edge_prob = 0.2, drop_feature_prob = 0.3, epochs = 200, lr = 1e-3):
+
+def traingrace(modelgrace, graph, features, batch_size=None, drop_edge_prob=0.2, drop_feature_prob=0.3, epochs=200,
+               lr=1e-3):
     modelgrace.train()
     optimizer = torch.optim.Adam(modelgrace.parameters(), lr=lr, weight_decay=1e-5)
 
@@ -117,4 +121,3 @@ def traingrace(modelgrace, graph, features, batch_size = None, drop_edge_prob = 
         loss = modelgrace.loss(Z1, Z2, batch_size=batch_size)
         loss.backward()
         optimizer.step()
-

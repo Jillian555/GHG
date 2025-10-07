@@ -42,10 +42,12 @@ class GPFplusAtt(nn.Module):
         p = weight.mm(self.p_list)
         return x + p
 
+
 class MLP(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(MLP, self).__init__()
         self.fc = nn.Linear(input_dim, output_dim)
+
     def forward(self, x):
         x = self.fc(x)
         return x
@@ -94,9 +96,8 @@ class NET(torch.nn.Module):
             prototype = torch.mean(features[train_ids], dim=0)
         return prototype
 
-
-
-    def syn_init_cls(self, fea_syn_old, labels_syn_old, rnd, mij, labels, train_ids, features, n_agents_cls_per_task, args):
+    def syn_init_cls(self, fea_syn_old, labels_syn_old, rnd, mij, labels, train_ids, features, n_agents_cls_per_task,
+                     args):
         dnodes_syn = features.shape[1]
         import random
         random.seed(42)
@@ -106,8 +107,7 @@ class NET(torch.nn.Module):
         self.coeff_cur = []
         nnodes_syn_cls_all = [0 for _ in range(n_agents_cls_per_task)]
 
-
-        syn_nodes = max(1,int(len(train_ids) * args.compression_ratio))
+        syn_nodes = max(1, int(len(train_ids) * args.compression_ratio))
         remain_syn_nodes = syn_nodes
         sort_mij_index = sorted(range(n_agents_cls_per_task), key=lambda k: mij[k], reverse=False)
         for cls in sort_mij_index:
@@ -142,7 +142,7 @@ class NET(torch.nn.Module):
                     break
         nnodes_syn = sum(nnodes_syn_cls_all)
         self.feat_syn = nn.Parameter(torch.FloatTensor(nnodes_syn, dnodes_syn).to(device='cuda:{}'.format(args.gpu)))
-        if rnd==0:
+        if rnd == 0:
             for cls in range(n_agents_cls_per_task):
                 index = list(set((labels == cls).nonzero().view(-1).tolist()) & set(train_ids))
                 if len(index) > 0:
@@ -160,8 +160,8 @@ class NET(torch.nn.Module):
                 index = list(set((labels == cls).nonzero().view(-1).tolist()) & set(train_ids))
                 index_syn_old = (labels_syn_old == cls).nonzero().view(-1).tolist()
                 if len(index) > 0:
-                    if len(index_syn_old)<nnodes_syn_cls_all[cls]:
-                        sample_new = random.sample(index, k=nnodes_syn_cls_all[cls]-len(index_syn_old))
+                    if len(index_syn_old) < nnodes_syn_cls_all[cls]:
+                        sample_new = random.sample(index, k=nnodes_syn_cls_all[cls] - len(index_syn_old))
                         fea_syn_ini.append(fea_syn_old[index_syn_old])
                         fea_syn_ini.append(features[sample_new])
                     else:
@@ -183,7 +183,6 @@ class NET(torch.nn.Module):
         self.optimizer_feat = torch.optim.Adam([self.feat_syn], lr=args.lr_feat)
         return self.feat_syn.detach(), self.g_syn, self.labels_syn
 
-
     def getsyn(self, g, features, train_ids, labels, n_agents_cls_per_task, args):
         for _ in range(args.syn_epochs):
             # other datasets
@@ -194,7 +193,8 @@ class NET(torch.nn.Module):
             emb_syns = [self.feat_syn]
             emb_reals = [features]
             for k_ in range(1, 4):
-                emb_syns.append(self.getprototype(self.g_syn.to(device='cuda:{}'.format(args.gpu)), self.feat_syn, k=k_))
+                emb_syns.append(
+                    self.getprototype(self.g_syn.to(device='cuda:{}'.format(args.gpu)), self.feat_syn, k=k_))
                 emb_reals.append(self.getprototype(g, features, k=k_))
             emb_syn = F.normalize(torch.cat(emb_syns, dim=1))
             emb_real = F.normalize(torch.cat(emb_reals, dim=1))
@@ -259,7 +259,6 @@ class NET(torch.nn.Module):
         loss_w_ = [1. / max(i, 1) for i in label_freq_all]
         loss_w_ = torch.tensor(loss_w_).to(device='cuda:{}'.format(args.gpu))
 
-
         self.model.eval()
         cls_head = self.classifications[t]
         cls_head.train()
@@ -272,7 +271,6 @@ class NET(torch.nn.Module):
             features = prompt_t.add(features)
         output = self.model(g, features)
         output = cls_head(output)
-
 
         loss2 = 0
         output_self_as = []
@@ -302,7 +300,6 @@ class NET(torch.nn.Module):
                     output_self_as.append(output_self)
                     labels_syn_as_.append(labels_syn_as[a_self][t].long().to(device='cuda:{}'.format(args.gpu)))
 
-
         if output_self_as != []:
             output_self_as.append(output[train_ids])
             labels_syn_as_.append(labels[train_ids])
@@ -311,8 +308,6 @@ class NET(torch.nn.Module):
         else:
             final_output = output[train_ids]
             final_label = labels[train_ids]
-
-
 
         loss = self.ce(final_output, final_label, weight=loss_w_)
         loss += args.w_kl * loss2
@@ -327,16 +322,15 @@ class NET(torch.nn.Module):
         for cls in range(n_agents_cls_per_task):
             pca = PCA(n_components=1)
             index_s = (final_label == cls).nonzero().view(-1).tolist()
-            if len(index_s)>0:
-                pca.fit_transform(copy.deepcopy(final_output[index_s].view(len(index_s),-1).detach().cpu().numpy()))
+            if len(index_s) > 0:
+                pca.fit_transform(copy.deepcopy(final_output[index_s].view(len(index_s), -1).detach().cpu().numpy()))
                 orthogonal_basis_clss.append(pca.components_)
-                output_clss.append(copy.deepcopy(final_output[index_s].view(len(index_s),-1).detach().mean(0)))
+                output_clss.append(copy.deepcopy(final_output[index_s].view(len(index_s), -1).detach().mean(0)))
             else:
                 orthogonal_basis_clss.append(copy.deepcopy([]))
                 output_clss.append(copy.deepcopy([]))
 
         return orthogonal_basis, orthogonal_basis_clss, output_clss, local_train_size, label_current
-
 
     def getpred(self, g, features, taskid):
         self.model.eval()
