@@ -170,7 +170,7 @@ class incremental_graph_trans_(nn.Module):
         self.n_nodes = self.labels.shape[0]
         self.tr_va_te_split = dataset[1]
 
-    def get_graph(self, tasks_to_retain=[], n_agents=None, partition='noniid-skew', node_ids=None, remove_edges=True):
+    def get_graph(self, tasks_to_retain=[], n_agents=None, partition='noniid0.1', node_ids=None, remove_edges=True):
         # get the partial graph
         # tasks-to-retain: classes retained in the partial graph
         # tasks-to-infer: classes to predict on the partial graph
