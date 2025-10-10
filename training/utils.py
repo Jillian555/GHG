@@ -27,6 +27,8 @@ def assign_hyp_param(args, params):
         args.ergnn_args = params
     if args.method == 'tpp':
         args.tpp_args = params
+    if args.method == 'ghg':
+        args.ghg_args = params
 
 
 def str2dict(s):
