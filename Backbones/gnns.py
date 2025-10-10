@@ -4,7 +4,6 @@ from .utils import *
 from dgl.base import DGLError
 from dgl.nn.pytorch import edge_softmax
 import dgl.function as fn
-import ipdb
 import torch as th
 
 linear_choices = {'nn.Linear': nn.Linear, 'Linear_IL': Linear_IL}
