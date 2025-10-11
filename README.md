@@ -29,7 +29,7 @@ Below is the example to run the GHG method on CoraFull-CL datasets under class-I
 ```
  python train.py --dataset CoraFull-CL --method ghg --backbone SGC --gpu 0 --n_agents=5 --n_rnds=4 --epochs=50 \
  --par=noniid0.1 --lr_feat=0.005 --syn_epoch=50 --compression_ratio=0.1 --n_cls=70 --bs=-1 \
- --wc=1.3 --ws=0.3  --w_sigma=1e-3   --w_col=1.2 --w_kl=1 --repeats=3 
+ --w_c=1.3 --w_s=0.3  --w_sigma=1e-3   --w_col=1.2 --w_kl=1 --repeats=3 
  ```
 
 
