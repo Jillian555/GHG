@@ -93,11 +93,8 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
     subfolder_c = name.split(config_name)[-2]
     save_model_name = f'{config_name}_{ite}'
     save_model_path = f'{args.result_path}/{subfolder_c}val_models/{save_model_name}.pkl'
-    save_proto_name = save_model_name + '_prototypes'
-    save_proto_path = f'{args.result_path}/{subfolder_c}val_models/{save_proto_name}.pkl'
     if not valid:
         lms = pickle.load(open(save_model_path, 'rb'))
-        prototypes_ = pickle.load(open(save_proto_path, 'rb'))
 
     for task in range(args.n_tasks):
         pro_cls = {}
@@ -109,10 +106,7 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
         for rnd in range(args.n_rnds):
             for a_id in range(args.n_agents):
                 if task == 0 and rnd == 0 and valid:
-                    if args.bs == -1:
-                        bs = None
-                    else:
-                        bs = args.bs
+                    bs = None if args.bs == -1 else args.bs
                     lms[a_id].pretrain(args, subgraph, features, bs)
 
                 if valid:
@@ -127,12 +121,11 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
                     torch.cuda.empty_cache()
 
                 if rnd == args.n_rnds - 1:
-                    if valid:
-                        prototypes_task = []
-                        for aid in range(args.n_agents):
-                            prototypes_task.append(
-                                lms[a_id].getprototype(g_syn_as_as[a_id][aid][task], fea_syn_as_as[a_id][aid][task]))
-                        prototypes_[task] = torch.nn.functional.normalize(torch.cat(prototypes_task, dim=0)).mean(0)
+                    prototypes_task = []
+                    for aid in range(args.n_agents):
+                        prototypes_task.append(
+                            lms[a_id].getprototype(g_syn_as_as[a_id][aid][task], fea_syn_as_as[a_id][aid][task]))
+                    prototypes_[task] = torch.nn.functional.normalize(torch.cat(prototypes_task, dim=0)).mean(0)
 
                     acc_mean = []
                     for t in range(task + 1):
@@ -143,7 +136,6 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
                         features, labels = subgraph.srcdata['feat'], subgraph.dstdata['label'].squeeze()
                         # test_ids = valid_ids_ if valid else test_ids_
                         test_ids = test_ids_
-                        print('test val', len(test_ids_), len(valid_ids_))
                         ids_per_cls_test = [list(set(ids).intersection(set(test_ids))) for ids in ids_per_cls]
                         if task > 0:
                             taskid = lms[a_id].gettaskid(prototypes_, subgraph, features, task + 1, test_ids)
@@ -238,10 +230,8 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
         mkdir_if_missing(f'{args.result_path}/{subfolder_c}/val_models')
         with open(save_model_path, 'wb') as f:
             pickle.dump(lms, f)
-        with open(save_proto_path, 'wb') as f:
-            pickle.dump(prototypes_, f)
 
-    final_A, final_AP, final_AF = [], [], []
+    final_AP, final_AF = [], []
     for a_id in range(args.n_agents):
         backward = []
         for t in range(args.n_tasks - 1):
@@ -250,22 +240,9 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
         mean_backward = round(np.mean(backward), 2)
         final_AP.append(acc_mean_as[a_id])
         final_AF.append(mean_backward)
-        tri_acc = []
-        for t in range(args.n_tasks):
-            tri_acc.append(acc_matrix_as[a_id][t][t])
-        final_A.append(np.mean(tri_acc))
         print('AP AF: ', acc_mean_as[a_id], mean_backward)
-    final_A_ = np.mean(final_A)
-    final_AP_ = np.mean(final_AP)
-    final_AF_ = np.mean(final_AF)
-    max_A_ = np.max(final_A)
-    max_AP_ = np.max(final_AP)
-    max_AF_ = np.max(final_AF)
-    min_A_ = np.min(final_A)
-    min_AP_ = np.min(final_AP)
-    min_AF_ = np.min(final_AF)
-    print('final AP AF: ', final_AP_, final_AF_)
-    print('max AP AF: ', max_AP_, max_AF_)
-    print('min AP AF: ', min_AP_, min_AF_)
+    mean_final_AP = np.mean(final_AP)
+    mean_final_AF = np.mean(final_AF)
+    print('MAP MAF: ', mean_final_AP, mean_final_AF)
 
-    return final_A_, final_AP_, final_AF_, final_A, final_AP, final_AF
+    return mean_final_AP, mean_final_AF
