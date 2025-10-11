@@ -5,8 +5,8 @@ from pipeline import *
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GHG')
     parser.add_argument("--n_agents", type=int, default=0, help="number of agents")
-    parser.add_argument("--dataset", type=str, default='Reddit-CL',
-                        help='CoraFull-CL, Arxiv-CL, Reddit-CL, Cora-CL, Citeseer-CL, SLAP-CL, Computers-CL')
+    parser.add_argument("--dataset", type=str, default='CoraFull-CL',
+                        help='CoraFull-CL, Arxiv-CL, Reddit-CL, Cora-CL, CiteSeer-CL, Computers-CL, SLAP-CL')
     parser.add_argument('--par', type=str, default='noniid0.1', help="dataset partition, [noniid0.1, noniid0.5]")
     parser.add_argument('--n_cls', type=int, default=None, help='will be assigned during running')
     parser.add_argument("--n_cls_task", type=int, default=10, help='number of classes per task')
@@ -31,8 +31,7 @@ if __name__ == '__main__':
     parser.add_argument('--backbone', type=str, default='GCN', help="backbone GNN, [GAT, GCN, GIN]")
     parser.add_argument('--method', type=str,
                         choices=["bare", 'lwf', 'gem', 'ewc', 'mas', 'twp', 'ergnn', 'tpp', 'ghg', 'jointtrain',
-                                 'joint',
-                                 'Joint'], default="bare", help="baseline continual learning method")
+                                 'joint', 'Joint'], default="bare", help="baseline continual learning method")
     parser.add_argument('--share-labels', type=strtobool, default=False,
                         help='task-IL specific, whether to share output label space for different tasks')
     parser.add_argument('--inter-task-edges', type=strtobool, default=False,
@@ -133,7 +132,7 @@ if __name__ == '__main__':
             subfolder = f'inter_task_edges/cls_IL/train_ratio_{train_ratio}/' if args.inter_task_edges else f'no_inter_task_edges/cls_IL/train_ratio_{train_ratio}/'
         elif args.ILmode == 'taskIL':
             subfolder = f'inter_task_edges/tsk_IL/train_ratio_{train_ratio}/' if args.inter_task_edges else f'no_inter_task_edges/tsk_IL/train_ratio_{train_ratio}/'
-        name = f'{subfolder}val_{args.dataset}_{args.method}_{args.n_agents}_{args.n_rnds}_{args.par}_{args.syn_epochs}_{args.reduction_rate}_{args.wc}_{args.ws}_{args.wc_cls}_{args.ws_cls}_{args.w_sigma}_{args.w_fea}_{args.repeats}'
+        name = f'{subfolder}val_{args.dataset}_{args.method}_{args.n_agents}_{args.par}_{args.n_rnds}_{args.compression_ratio}_{args.w_c}_{args.w_s}_{args.w_col}_{args.w_sigma}_{args.w_kl}_{args.repeats}'
         # if args.minibatch:
         #     name = name + f'_bs{args.batch_size}'
         mkdir_if_missing(f'{args.result_path}/' + subfolder)
@@ -141,21 +140,19 @@ if __name__ == '__main__':
             name = remove_illegal_characters(name)
 
         print('method args are', hyp_params)
-        As, APs, AFs = [], [], []
+        APs, AFs = [], []
         for ite in range(args.repeats):
             print(name, ite)
             args.current_model_save_path = [name, ite]
-            final_A_, final_AP_, final_AF_, final_A, final_AP, final_AF = main(args, valid=True)
-            As.append(final_A_)
-            APs.append(final_AP_)
-            AFs.append(final_AF_)
+            MAP, MAF = main(args, valid=True)
+            APs.append(MAP)
+            AFs.append(MAF)
             torch.cuda.empty_cache()
-            AP_dict[hyp_params_str].append(final_AP_)
+            AP_dict[hyp_params_str].append(MAP)
         import numpy as np
 
-        # print(f"A: {np.mean(As):.2f}±{np.std(As, ddof=1):.2f}", flush=True)
-        print(f"AP: {np.mean(APs):.2f}±{np.std(APs, ddof=1):.2f}", flush=True)
-        print(f"AF: {np.mean(AFs):.2f}±{np.std(AFs, ddof=1):.2f}", flush=True)
+        print(f"MAP: {np.mean(APs):.2f}±{np.std(APs, ddof=1):.2f}", flush=True)
+        print(f"MAF: {np.mean(AFs):.2f}±{np.std(AFs, ddof=1):.2f}", flush=True)
 
         if np.mean(AP_dict[hyp_params_str]) > AP_best:
             AP_best = np.mean(AP_dict[hyp_params_str])
