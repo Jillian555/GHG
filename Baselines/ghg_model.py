@@ -325,7 +325,7 @@ class NET(torch.nn.Module):
             if len(index_s) > 0:
                 pca.fit_transform(copy.deepcopy(final_output[index_s].view(len(index_s), -1).detach().cpu().numpy()))
                 orthogonal_basis_clss.append(pca.components_)
-                output_clss.append(copy.deepcopy(final_output[index_s].view(len(index_s), -1).detach().mean(0)))
+                output_clss.append(copy.deepcopy(final_output[index_s].view(len(index_s), -1).detach().cpu().mean(0)))
             else:
                 orthogonal_basis_clss.append(copy.deepcopy([]))
                 output_clss.append(copy.deepcopy([]))
