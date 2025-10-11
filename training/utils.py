@@ -245,13 +245,13 @@ def cal_model_cosine_difference_cls(n_agents, outputs_as, topo_fea_cls_as):
             if i == j:
                 model_similarity_matrix[i, j] = -1
                 model_similarity_matrix[j, i] = -1
-            elif outputs_as[i] == [] and outputs_as[j] != []:
+            elif topo_fea_cls_as[i] == [] and topo_fea_cls_as[j] != []:
                 model_similarity_matrix[i, j] = 0
                 model_similarity_matrix[j, i] = 0
-            elif outputs_as[i] != [] and outputs_as[j] == []:
+            elif topo_fea_cls_as[i] != [] and topo_fea_cls_as[j] == []:
                 model_similarity_matrix[i, j] = 0
                 model_similarity_matrix[j, i] = 0
-            elif outputs_as[i] == [] and outputs_as[j] == []:
+            elif topo_fea_cls_as[i] == [] and topo_fea_cls_as[j] == []:
                 model_similarity_matrix[i, j] = 0 
                 model_similarity_matrix[j, i] = 0 
             else:
