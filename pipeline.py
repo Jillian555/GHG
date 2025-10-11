@@ -187,13 +187,9 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
                 for cls in range(n_agents_cls_per_task):
                     model_complementary_matrix_cls = cal_complementary_cls(args.n_agents,
                                                                            np.array(principal_list_as)[:, cls])
-                    print('complementary***********************', cls)
-                    print(model_complementary_matrix_cls)
                     model_difference_matrix_cls = cal_model_cosine_difference_cls(args.n_agents,
                                                                                   np.array(similarity_as)[:, cls],
                                                                                   np.array(topo_fea_cls_as)[:, cls])
-                    print('difference ***********************', cls)
-                    print(model_difference_matrix_cls)
                     ratio_cls_ = (np.array(np.array(local_train_sizes_cls)[:, cls].squeeze()) / np.sum(
                         np.array(local_train_sizes_cls)[:, cls].squeeze())).tolist()
                     graph_matrix_cls_ = torch.ones(args.n_agents, args.n_agents)
@@ -201,8 +197,6 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
                                                                          model_complementary_matrix_cls,
                                                                          model_difference_matrix_cls,
                                                                          args.w_c, args.w_s, ratio_cls_)
-                    print('all***********************', cls)
-                    print(graph_matrix_cls_)
                     graph_matrix_cls_cs.append(graph_matrix_cls_)
                 for i in range(args.n_agents):
                     for j in range(args.n_agents):
