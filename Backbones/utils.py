@@ -282,14 +282,17 @@ class NodeLevelDataset(incremental_graph_trans_):
         if name[0:4] == 'ogbn':
             data = DglNodePropPredDataset(name, root=f'{args.ori_data_path}/ogb_downloaded')
             graph, label = data[0]
-        elif name in ['CoraFullDataset', 'CoraFull', 'corafull', 'CoraFull-CL', 'Corafull-CL']:
+        elif name == 'CoraFull-CL':
             custom_download_path = f'{args.ori_data_path}'
             download_path = f'{args.ori_data_path}/cora_full.zip'
             if not os.path.exists(download_path):
                 download('https://data.dgl.ai/dataset/cora_full.zip', path=download_path)
             data = CoraFullDataset(custom_download_path)
             graph, label = data[0], data[0].dstdata['label'].view(-1, 1)
-        elif name in ['reddit', 'Reddit', 'Reddit-CL']:
+        elif name == 'Arxiv-CL':
+            data = DglNodePropPredDataset('ogbn-arxiv', root=f'{args.ori_data_path}/ogb_downloaded')
+            graph, label = data[0]
+        elif name == 'Reddit-CL':
             # data = RedditDataset(self_loop=False)
             custom_download_path = f'{args.ori_data_path}'
             # download_path = f'{args.ori_data_path}/reddit.zip'
@@ -297,9 +300,6 @@ class NodeLevelDataset(incremental_graph_trans_):
             #     download('https://data.dgl.ai/dataset/reddit.zip', path=download_path)
             data = RedditDataset(self_loop=False, raw_dir=custom_download_path)  # , force_reload=True
             graph, label = data.graph, data.labels.view(-1, 1)
-        elif name == 'Arxiv-CL':
-            data = DglNodePropPredDataset('ogbn-arxiv', root=f'{args.ori_data_path}/ogb_downloaded')
-            graph, label = data[0]
         elif name == 'Cora-CL':
             custom_download_path = f'{args.ori_data_path}'
             download_path = f'{args.ori_data_path}/cora.zip'
@@ -307,7 +307,7 @@ class NodeLevelDataset(incremental_graph_trans_):
                 download('https://data.dgl.ai/dataset/cora.zip', path=download_path)
             data = CoraGraphDataset(custom_download_path)
             graph, label = data[0], data[0].dstdata['label'].view(-1, 1)
-        elif name == 'Citeseer-CL':
+        elif name == 'CiteSeer-CL':
             custom_download_path = f'{args.ori_data_path}'
             download_path = f'{args.ori_data_path}/citeseer.zip'
             if not os.path.exists(download_path):
@@ -319,8 +319,7 @@ class NodeLevelDataset(incremental_graph_trans_):
             data = AmazonCoBuyComputerDataset(custom_download_path)
             graph, label = data[0], data[0].dstdata['label'].view(-1, 1)
         elif name == 'SLAP-CL':
-            graph_slap, label_slap = read_slap()
-            graph, label = graph_slap, label_slap.view(-1, 1)
+            graph, label = read_slap()
         else:
             print('invalid data name')
 
@@ -385,62 +384,18 @@ def record_net_data_stats(y_train, net_dataidx_map):
     return net_cls_counts_npy
 
 
-class BioDataset:
-    def __init__(self, max_seeds=5):
-        self.max_seeds = max_seeds
-
-    def read_input(self, input_folder):
-        self.X = pd.read_csv(f'{input_folder}/X.csv')
-        self.y = pd.read_csv(f'{input_folder}/y.csv')
-
-        networkx_graph = nx.read_graphml(f'{input_folder}/graph.graphml')
-        networkx_graph = nx.relabel_nodes(networkx_graph, {str(i): i for i in range(len(networkx_graph))})
-        self.networkx_graph = networkx_graph
-
-        self.dgl_graph = dgl.from_networkx(networkx_graph)
-        self.dgl_graph.ndata['feat'] = torch.tensor(self.X.values, dtype=torch.float32)
-
-        categorical_columns = []
-        if os.path.exists(f'{input_folder}/cat_features.txt'):
-            with open(f'{input_folder}/cat_features.txt') as f:
-                for line in f:
-                    if line.strip():
-                        categorical_columns.append(line.strip())
-
-        self.cat_features = None
-        if categorical_columns:
-            columns = self.X.columns
-            self.cat_features = np.where(columns.isin(categorical_columns))[0]
-
-            for col in list(columns[self.cat_features]):
-                self.X[col] = self.X[col].astype(str)
-
-        if os.path.exists(f'{input_folder}/masks.json'):
-            with open(f'{input_folder}/masks.json') as f:
-                self.masks = json.load(f)
-        else:
-            print('Creating and saving train/val/test masks')
-            idx = list(range(self.y.shape[0]))
-            self.masks = dict()
-            for i in range(self.max_seeds):
-                random.shuffle(idx)
-                r1, r2, r3 = idx[:int(.6 * len(idx))], idx[int(.6 * len(idx)):int(.8 * len(idx))], idx[
-                                                                                                   int(.8 * len(idx)):]
-                self.masks[str(i)] = {"train": r1, "val": r2, "test": r3}
-
-            with open(f'{input_folder}/masks.json', 'w+') as f:
-                json.dump(self.masks, f, cls=NpEncoder)
-
-        self.labels = torch.tensor(self.y.values.squeeze(), dtype=torch.long)
-        self.dgl_graph.ndata['label'] = self.labels
-
 
 def read_slap():
-    dataset = BioDataset(max_seeds=5)
-    dataset.read_input('/slap/')
-    g = dataset.dgl_graph
-    labels = dataset.labels
-    print(g)
-    print(g.ndata['feat'].shape)
-    print(g.ndata['label'].shape)
-    return g, labels
+    input_folder = '/slap/'
+    X = pd.read_csv(f'{input_folder}/X.csv')
+    y = pd.read_csv(f'{input_folder}/y.csv')
+
+    networkx_graph = nx.read_graphml(f'{input_folder}/graph.graphml')
+    networkx_graph = nx.relabel_nodes(networkx_graph, {str(i): i for i in range(len(networkx_graph))})
+
+    dgl_graph = dgl.from_networkx(networkx_graph)
+    dgl_graph.ndata['feat'] = torch.tensor(X.values, dtype=torch.float32)
+
+    labels = torch.tensor(y.values.squeeze(), dtype=torch.long)
+    dgl_graph.ndata['label'] = labels
+    return dgl_graph, labels.view(-1, 1)
