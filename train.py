@@ -124,9 +124,6 @@ if __name__ == '__main__':
             args.n_nbs_sample) if args.sample_nbs else dgl.dataloading.MultiLayerFullNeighborSampler(2)
 
         main = get_pipeline(args)
-        from memory import test_mem
-
-        test_mem(args)
         train_ratio = round(1 - args.ratio_valid_test[0] - args.ratio_valid_test[1], 2)
         if args.ILmode == 'classIL':
             subfolder = f'inter_task_edges/cls_IL/train_ratio_{train_ratio}/' if args.inter_task_edges else f'no_inter_task_edges/cls_IL/train_ratio_{train_ratio}/'
