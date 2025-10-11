@@ -17,7 +17,7 @@ This repository contains our GHG implemented for running on GPU devices. To run 
 * ogb==1.3.1
 * dgl==0.6.1
 * dgllife==0.2.6
-* cvxpy==1.1.15
+* cvxpy==1.3.4
 * pandas==1.3.5
 
 
