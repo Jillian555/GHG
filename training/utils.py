@@ -230,8 +230,8 @@ def cal_model_cosine_difference(n_agents, task, pro_cls, topo_fea_as):
             else:
                 parai = weight_flatten_all_sep(pro_cls[i]['classification'].copy(), None)
                 paraj = weight_flatten_all_sep(pro_cls[j]['classification'].copy(), None)
-            embi = torch.cat([parai, topo_fea_as[i].cpu()])
-            embj = torch.cat([paraj, topo_fea_as[j].cpu()])
+            embi = torch.cat([parai, torch.tensor(topo_fea_as[i])])
+            embj = torch.cat([paraj, torch.tensor(topo_fea_as[j])])
             diff = - torch.nn.functional.cosine_similarity(embi.unsqueeze(0), embj.unsqueeze(0))
             model_similarity_matrix[i, j] = diff
             model_similarity_matrix[j, i] = diff
@@ -252,11 +252,11 @@ def cal_model_cosine_difference_cls(n_agents, outputs_as, topo_fea_cls_as):
                 model_similarity_matrix[i, j] = 0
                 model_similarity_matrix[j, i] = 0
             elif outputs_as[i] == [] and outputs_as[j] == []:
-                model_similarity_matrix[i, j] = 0  # -1
-                model_similarity_matrix[j, i] = 0  # -1
+                model_similarity_matrix[i, j] = 0 
+                model_similarity_matrix[j, i] = 0 
             else:
-                embi = torch.cat([outputs_as[i].cpu(), topo_fea_cls_as[i].cpu()])
-                embj = torch.cat([outputs_as[j].cpu(), topo_fea_cls_as[j].cpu()])
+                embi = torch.cat([torch.tensor(outputs_as[i]), torch.tensor(topo_fea_cls_as[i])])
+                embj = torch.cat([torch.tensor(outputs_as[j]), torch.tensor(topo_fea_cls_as[j])])
                 diff = - torch.nn.functional.cosine_similarity(embi.unsqueeze(0), embj.unsqueeze(0))
                 model_similarity_matrix[i, j] = diff
                 model_similarity_matrix[j, i] = diff
