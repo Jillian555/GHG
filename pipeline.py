@@ -155,7 +155,7 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
                     'classification': get_state_dict(lms[a_id].classifications[task])
                 }
             if rnd == 0 and valid:
-                topo_fea_emb = lms[0].getprototype(subgraph, features)
+                topo_fea_emb = lms[0].getprototype(subgraph, features).cpu()
                 for a_id in range(args.n_agents):
                     topo_fea_as[a_id] = topo_fea_emb[train_ids[a_id]].mean(0)
                     topofeas = []
