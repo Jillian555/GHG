@@ -58,10 +58,10 @@ class NET(torch.nn.Module):
         super(NET, self).__init__()
         self.n_tasks = args.n_tasks
         self.model = model
-        self.drop_edge = args.tpp_args['pe']
-        self.drop_feature = args.tpp_args['pf']
+        self.drop_edge = args.ghg_args['pe']
+        self.drop_feature = args.ghg_args['pf']
         self.n_agents = args.n_agents
-        num_promt = int(args.tpp_args['prompts'])
+        num_promt = int(args.ghg_args['prompts'])
         if num_promt < 2:
             prompt = SimplePrompt(args.d_data).to(device='cuda:{}'.format(args.gpu))
         else:
