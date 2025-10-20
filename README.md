@@ -1,5 +1,6 @@
 # Graphs Help Graphs: Multi-Agent Graph Socialized Learning (GHG)
 This is the official repository for the paper [Graphs Help Graphs: Multi-Agent Graph Socialized Learning](https://openreview.net/pdf?id=lkw2WJLdbh) (NeurIPS 2025).
+![Framework](framework.png)
 
  
 
