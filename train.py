@@ -163,4 +163,4 @@ if __name__ == '__main__':
     #
     #     for ite in range(args.repeats):
     #         args.current_model_save_path = [name_best, ite]
-    #         final_AP_, final_AF_, final_AP, final_AF = main(args, valid=False)
+    #         MAP, MAF = main(args, valid=False)
