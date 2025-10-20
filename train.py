@@ -1,7 +1,7 @@
 import argparse
 from distutils.util import strtobool
 from pipeline import *
-
+import numpy as np
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GHG')
     parser.add_argument("--n_agents", type=int, default=0, help="number of agents")
@@ -137,30 +137,33 @@ if __name__ == '__main__':
             name = remove_illegal_characters(name)
 
         print('method args are', hyp_params)
-        APs, AFs = [], []
+        MAPs, MAFs = [], []
         for ite in range(args.repeats):
             print(name, ite)
             args.current_model_save_path = [name, ite]
             MAP, MAF = main(args, valid=True)
-            APs.append(MAP)
-            AFs.append(MAF)
+            MAPs.append(MAP)
+            MAFs.append(MAF)
             torch.cuda.empty_cache()
             AP_dict[hyp_params_str].append(MAP)
-        import numpy as np
 
-        print(f"MAP: {np.mean(APs):.2f}±{np.std(APs, ddof=1):.2f}", flush=True)
-        print(f"MAF: {np.mean(AFs):.2f}±{np.std(AFs, ddof=1):.2f}", flush=True)
+        print(f"MAP: {np.mean(MAPs):.2f}±{np.std(MAPs, ddof=1):.2f}", flush=True)
+        print(f"MAF: {np.mean(MAFs):.2f}±{np.std(MAFs, ddof=1):.2f}", flush=True)
 
         if np.mean(AP_dict[hyp_params_str]) > AP_best:
             AP_best = np.mean(AP_dict[hyp_params_str])
             hyp_best_str = hyp_params_str
             name_best = name
 
-    # config_name = name_best.split('/')[-1]
-    # subfolder_c = name_best.split(config_name)[-2]
-    # if args.perform_testing:
-    #     print('----------Now in testing--------')
-    #
-    #     for ite in range(args.repeats):
-    #         args.current_model_save_path = [name_best, ite]
-    #         MAP, MAF = main(args, valid=False)
+    config_name = name_best.split('/')[-1]
+    subfolder_c = name_best.split(config_name)[-2]
+    if args.perform_testing:
+        print('----------Now in testing--------')
+        MAPs, MAFs = [], []
+        for ite in range(args.repeats):
+            args.current_model_save_path = [name_best, ite]
+            MAP, MAF = main(args, valid=False)
+            MAPs.append(MAP)
+            MAFs.append(MAF)
+        print(f"MAP: {np.mean(MAPs):.2f}±{np.std(MAPs, ddof=1):.2f}", flush=True)
+        print(f"MAF: {np.mean(MAFs):.2f}±{np.std(MAFs, ddof=1):.2f}", flush=True)
