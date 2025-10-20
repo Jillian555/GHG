@@ -1,13 +1,10 @@
 import pickle
-import torch
-import dgl
 from Backbones.model_factory import get_model
 from Backbones.utils import evaluatewp, NodeLevelDataset
 from training.utils import *
 import importlib
 import copy
 import warnings
-
 warnings.filterwarnings('ignore')
 
 
@@ -62,6 +59,7 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
     acc_matrix_as, acc_mean_as, lms, principal_list, principal_list_as, similarity_as = [], [], [], [], [], []
     labels_syn_as, fea_syn_as, g_syn_as, labels_syn_as_as, fea_syn_as_as, g_syn_as_as = [], [], [], [], [], []
     local_train_sizes, local_train_sizes_cls, topo_fea_as, topo_fea_cls_as = [], [], [], []
+    prototypes_as = []
     acc_matrix = np.zeros([args.n_tasks, args.n_tasks])
     labels2 = [copy.deepcopy([]) for _ in range(args.n_tasks)]
     g2 = [copy.deepcopy([]) for _ in range(args.n_tasks)]
@@ -82,6 +80,7 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
         labels_syn_as.append(copy.deepcopy(labels2))
         g_syn_as.append(copy.deepcopy(g2))
         fea_syn_as.append(copy.deepcopy(fea2))
+        prototypes_as.append(prototypes_)
     for a_id in range(args.n_agents):
         labels_syn_as_as.append(copy.deepcopy(labels_syn_as))
         g_syn_as_as.append(copy.deepcopy(g_syn_as))
@@ -93,8 +92,13 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
     subfolder_c = name.split(config_name)[-2]
     save_model_name = f'{config_name}_{ite}'
     save_model_path = f'{args.result_path}/{subfolder_c}val_models/{save_model_name}.pkl'
+    if args.method == 'ghg':
+        save_proto_name = save_model_name + '_prototypes'
+        save_proto_path = f'{args.result_path}/{subfolder_c}val_models/{save_proto_name}.pkl'
     if not valid:
         lms = pickle.load(open(save_model_path, 'rb'))
+        if args.method == 'ghg':
+            prototypes_as = pickle.load(open(save_proto_path, 'rb'))
 
     for task in range(args.n_tasks):
         pro_cls = {}
@@ -105,27 +109,29 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
 
         for rnd in range(args.n_rnds):
             for a_id in range(args.n_agents):
-                if task == 0 and rnd == 0 and valid:
+                if valid:
+                    print(f'task {task}  rnd {rnd}  agent: {a_id}')
+                if task == 0 and rnd == 0 and valid and args.method == 'ghg':
                     bs = None if args.bs == -1 else args.bs
                     lms[a_id].pretrain(args, subgraph, features, bs)
 
-                if valid:
-                    for epoch in range(epochs):
-                        principal_list[a_id], principal_list_as[a_id], similarity_as[a_id], local_train_sizes[a_id], \
-                        local_train_sizes_cls[a_id] = lms[a_id].observe_il(subgraph, features,
-                                                                           labels - n_agents_cls_per_task * task, task,
-                                                                           train_ids[a_id], n_agents_cls_per_task, lms,
-                                                                           graph_matrix[a_id], a_id,
-                                                                           fea_syn_as_as[a_id], g_syn_as_as[a_id],
-                                                                           labels_syn_as_as[a_id], rnd, args)
-                    torch.cuda.empty_cache()
+                for epoch in range(epochs):
+                    principal_list[a_id], principal_list_as[a_id], similarity_as[a_id], local_train_sizes[a_id], \
+                    local_train_sizes_cls[a_id] = lms[a_id].observe_il(subgraph, features,
+                                                                       labels - n_agents_cls_per_task * task, task,
+                                                                       train_ids[a_id], n_agents_cls_per_task, lms,
+                                                                       graph_matrix[a_id], a_id,
+                                                                       fea_syn_as_as[a_id], g_syn_as_as[a_id],
+                                                                       labels_syn_as_as[a_id], rnd, args)
 
                 if rnd == args.n_rnds - 1:
-                    prototypes_task = []
-                    for aid in range(args.n_agents):
-                        prototypes_task.append(
-                            lms[a_id].getprototype(g_syn_as_as[a_id][aid][task], fea_syn_as_as[a_id][aid][task]))
-                    prototypes_[task] = torch.nn.functional.normalize(torch.cat(prototypes_task, dim=0)).mean(0)
+                    if valid and args.method == 'ghg':
+                        prototypes_task = []
+                        for aid in range(args.n_agents):
+                            prototypes_task.append(
+                                lms[a_id].getprototype(g_syn_as_as[a_id][aid][task], fea_syn_as_as[a_id][aid][task]))
+                        prototypes_[task] = torch.nn.functional.normalize(torch.cat(prototypes_task, dim=0)).mean(0)
+                        prototypes_as[a_id] = prototypes_
 
                     acc_mean = []
                     for t in range(task + 1):
@@ -134,14 +140,13 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
                             'rb'))
                         subgraph = subgraph.to(device='cuda:{}'.format(args.gpu))
                         features, labels = subgraph.srcdata['feat'], subgraph.dstdata['label'].squeeze()
-                        # test_ids = valid_ids_ if valid else test_ids_
-                        test_ids = test_ids_
+                        test_ids = valid_ids_ if valid else test_ids_
                         ids_per_cls_test = [list(set(ids).intersection(set(test_ids))) for ids in ids_per_cls]
-                        if task > 0:
-                            taskid = lms[a_id].gettaskid(prototypes_, subgraph, features, task + 1, test_ids)
-                        else:
-                            taskid = 0
-                        print('task id (predict real)', taskid, t)
+                        if args.method == 'ghg':
+                            if task > 0:
+                                taskid = lms[a_id].gettaskid(prototypes_as[a_id], subgraph, features, task + 1, test_ids)
+                            else:
+                                taskid = 0
                         output = lms[a_id].getpred(subgraph, features, taskid)
                         acc = evaluatewp(output, labels - args.n_cls_task * t, test_ids, cls_balance=args.cls_balance,
                                          ids_per_cls=ids_per_cls_test)
@@ -150,10 +155,11 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
                         print(f"a{a_id} c{rnd} T{t:02d} {acc * 100:.2f}|", end="")
                     acc_mean_as[a_id] = round(np.mean(acc_mean) * 100, 2)
                     print()
-                pro_cls[a_id] = {
-                    'prompt': get_state_dict(lms[a_id].prompts[task - 1]),
-                    'classification': get_state_dict(lms[a_id].classifications[task])
-                }
+                if valid:
+                    pro_cls[a_id] = {
+                        'prompt': get_state_dict(lms[a_id].prompts[task - 1]),
+                        'classification': get_state_dict(lms[a_id].classifications[task])
+                    }
             if rnd == 0 and valid:
                 topo_fea_emb = lms[0].getprototype(subgraph, features).cpu()
                 for a_id in range(args.n_agents):
@@ -171,17 +177,11 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
 
             if rnd < args.n_rnds - 1 and valid:
                 model_complementary_matrix = cal_complementary(args.n_agents, principal_list)
-                print('complementary***********************')
-                print(model_complementary_matrix)
                 model_difference_matrix = cal_model_cosine_difference(args.n_agents, task, pro_cls, topo_fea_as)
-                print('difference ***********************')
-                print(model_difference_matrix)
                 ratio = (np.array(local_train_sizes) / np.sum(local_train_sizes)).tolist()
                 graph_matrix = optimizing_graph_matrix_neighbor(args.n_agents, graph_matrix,
                                                                 model_complementary_matrix, model_difference_matrix,
                                                                 args.w_c, args.w_s, ratio)
-                print('all***********************')
-                print(graph_matrix)
                 graph_matrix = torch.tensor(graph_matrix)
                 graph_matrix_cls_cs = []
                 for cls in range(n_agents_cls_per_task):
@@ -200,7 +200,7 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
                     graph_matrix_cls_cs.append(graph_matrix_cls_)
                 for i in range(args.n_agents):
                     for j in range(args.n_agents):
-                        print(f'agent{j} for agent{i} syn data ......................................')
+                        print(f'agent{j} for agent{i} syn data')
                         ratio_cls_orig = (
                                     np.array(local_train_sizes_cls[j]) / np.sum(local_train_sizes_cls[j])).tolist()
                         mij = [args.w_col * graph_matrix_cls_cs[cls][i][j] + ratio_cls_orig[cls] for cls in
@@ -224,6 +224,9 @@ def pipeline_class_IL_no_inter_edge(args, valid=False):
         mkdir_if_missing(f'{args.result_path}/{subfolder_c}/val_models')
         with open(save_model_path, 'wb') as f:
             pickle.dump(lms, f)
+        if args.method == 'ghg':
+            with open(save_proto_path, 'wb') as f:
+                pickle.dump(prototypes_as, f)
 
     final_AP, final_AF = [], []
     for a_id in range(args.n_agents):
