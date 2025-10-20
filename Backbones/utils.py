@@ -327,7 +327,6 @@ class NodeLevelDataset(incremental_graph_trans_):
         cls = [i for i in range(n_cls)]
         cls_id_map = {i: list((label.squeeze() == i).nonzero().squeeze().view(-1, ).numpy()) for i in cls}
         cls_sizes = {c: len(cls_id_map[c]) for c in cls_id_map}
-        print(cls_sizes)
         for c in cls_sizes:
             if cls_sizes[c] < 2:
                 cls.remove(
