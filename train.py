@@ -86,7 +86,7 @@ if __name__ == '__main__':
                         help='number of neighbors to sample per hop, use comma to separate the numbers when using the command line, e.g. 10,25 or 10, 25')
     parser.add_argument('--nb_sampler', default=None)
     parser.add_argument('--replace_illegal_char', type=strtobool, default=False)
-    parser.add_argument('--ori_data_path', type=str, default='/root/code/cglb/ncgl/store/data/',
+    parser.add_argument('--ori_data_path', type=str, default='/store/data/',
                         help='the root path to raw data')
     parser.add_argument('--data_path', type=str, default='./data',
                         help='the path to processed data (splitted into tasks)')
